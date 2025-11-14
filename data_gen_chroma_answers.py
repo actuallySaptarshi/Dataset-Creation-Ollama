@@ -8,7 +8,8 @@ from langchain_chroma import Chroma
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import PyPDFLoader
-from langchain.chains import RetrievalQA
+from langchain_core.runnables import RunnablePassthrough
+
 
 # --- Configuration ---
 
@@ -88,17 +89,16 @@ def setup_qa_chain():
 
     prompt = ChatPromptTemplate.from_template(template)
 
-    # 6. Create the QA chain
-    qa_chain = RetrievalQA.from_chain_type(
-        llm=llm,
-        chain_type="stuff", # "stuff" puts all context chunks into the prompt
-        retriever=retriever,
-        return_source_documents=False, # We only need the final answer
-        chain_type_kwargs={"prompt": prompt}
+    question_chain = (
+        { "context" : retriever ,"context": RunnablePassthrough()}
+        | prompt
+        | llm
     )
+
+    answer = question_chain.invoke(prompt)
     
     print("RAG pipeline is ready.")
-    return qa_chain
+    return answer
 
 # --- NEW HELPER FUNCTION ---
 def is_answer_repetitive(answer: str, threshold: int = 3) -> bool:
