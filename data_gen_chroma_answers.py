@@ -14,7 +14,7 @@ from langchain_core.runnables import RunnablePassthrough
 # --- Configuration ---
 
 # URL from your chroma_db.py
-FILE_PATH_URL = "FILE PATH OR URL"
+FILE_PATH_URL = "path/to/pdf_file.pdf"
 # Directory to store the persistent Chroma database
 PERSIST_DIRECTORY = 'chroma_db_store'
 
@@ -33,7 +33,6 @@ template = """
     Answer:
     """
 
-# --- End Configuration ---
 
 def setup_qa_chain():
     """
@@ -41,7 +40,7 @@ def setup_qa_chain():
     Uses a persistent vector store to avoid re-indexing on every run.
     """
     print("Setting up RAG pipeline...")
-
+    
     # 2. Load the LLM and Embeddings (from your chroma_db.py)
     try:
         llm = ChatOllama(model="gemma3:4b-it-q8_0", temperature=0.0)
@@ -90,15 +89,12 @@ def setup_qa_chain():
     prompt = ChatPromptTemplate.from_template(template)
 
     question_chain = (
-        { "context" : retriever ,"context": RunnablePassthrough()}
+        {"context": retriever  ,"question": RunnablePassthrough()}
         | prompt
         | llm
     )
-
-    answer = question_chain.invoke(prompt)
-    
     print("RAG pipeline is ready.")
-    return answer
+    return question_chain
 
 # --- NEW HELPER FUNCTION ---
 def is_answer_repetitive(answer: str, threshold: int = 3) -> bool:
@@ -193,14 +189,14 @@ def process_questions(qa_chain):
                         if attempt > 1:
                             # On retry, add a "nudge" to the prompt to avoid repetition
                             # This is crucial as temp=0.0 is deterministic
-                            current_question = f"{question}\n\n(Follow-up instruction: Please provide a complete and concise answer. Ensure there are no repetitive lines or sentences in your response.)"
                             print(f"  (Attempt {attempt}/{max_retries} with nudge)...", end=" ")
                         else:
                             print(f"  (Attempt {attempt}/{max_retries})...", end=" ")
 
                         # Get the answer from the RAG chain
-                        response = qa_chain.invoke({"query": current_question})
-                        answer = response.get('result', 'Error: No result found.').strip()
+                        response = qa_chain.invoke(current_question)
+                        # --- CORRECT ---
+                        answer = response.content.strip()
                         
                         # Check for repetition
                         if not is_answer_repetitive(answer, threshold=3):
